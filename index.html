@@ -1,0 +1,1159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Stratus – Code Editor</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  
+  <style>
+    /* --- Base & Layout --- */
+    :root {
+      --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+        Helvetica, Arial, sans-serif;
+      --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+        "Liberation Mono", "Courier New", monospace;
+      
+      --brand-accent-light: #2DD4BF; /* Teal 400 */
+      --brand-accent: #0D9488;       /* Teal 600 */
+      --brand-accent-dark: #134E4A;    /* Teal 900 */
+
+      --bg-activity-bar: #333333;
+      --bg-sidebar: #252526;
+      --bg-editor: #1E1E1E;
+      --bg-panel: #252526;
+      --bg-panel-header: #333333;
+      --bg-statusbar: var(--brand-accent);
+      --bg-tab-inactive: #2D2D2D;
+      --bg-tab-active: var(--bg-editor);
+
+      --border-color-light: #444444;
+      --border-color-dark: #000;
+
+      --text-primary: #CCCCCC;
+      --text-secondary: #9B9B9B;
+      --text-active: #FFFFFF;
+      --text-accent: var(--brand-accent-light);
+    }
+
+    body {
+      margin: 0;
+      font-family: var(--font-sans);
+      background: var(--bg-editor);
+      color: var(--text-primary);
+      display: flex;
+      height: 100vh;
+      width: 100vw;
+      overflow: hidden;
+    }
+
+    /* --- 1. Custom Scrollbars (NEW) --- */
+    ::-webkit-scrollbar {
+      width: 8px;
+      height: 8px;
+    }
+    ::-webkit-scrollbar-track {
+      background: var(--bg-sidebar);
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #555;
+      border-radius: 4px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #666;
+    }
+    /* For Monaco Editor's scrollbars (which are inside an iframe) */
+    #editor .monaco-scrollable-element .scrollbar {
+        background: var(--bg-sidebar) !important;
+    }
+    #editor .monaco-scrollable-element .slider {
+        background: #555 !important;
+    }
+    
+    /* --- Activity Bar --- */
+    #activity-bar {
+      flex: 0 0 48px;
+      background: var(--bg-activity-bar);
+      border-right: 1px solid var(--border-color-dark);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding-top: 10px;
+      gap: 10px;
+      z-index: 30;
+    }
+    .activity-icon {
+      width: 48px;
+      height: 48px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      color: var(--text-secondary);
+      position: relative;
+    }
+    .activity-icon:hover {
+      color: var(--text-active);
+    }
+    .activity-icon.active {
+      color: var(--text-active);
+    }
+    .activity-icon.active::before {
+      content: "";
+      position: absolute;
+      left: 0;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 2px;
+      height: 24px;
+      background: var(--text-active);
+    }
+    .activity-icon svg {
+      width: 24px;
+      height: 24px;
+      fill: currentColor;
+    }
+
+    /* --- Sidebar (File Explorer) --- */
+    #sidebar {
+      flex: 0 0 240px;
+      min-width: 150px;
+      background: var(--bg-sidebar);
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+      z-index: 20;
+    }
+    #sidebar-header {
+      padding: 12px;
+      text-transform: uppercase;
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--text-secondary);
+      border-bottom: 1px solid var(--border-color-light);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    #open-folder-btn {
+      padding: 6px 12px;
+      background: var(--brand-accent); /* Changed */
+      color: var(--text-active);
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: background 0.2s ease; /* Added */
+    }
+    #open-folder-btn:hover {
+      background: var(--brand-accent-light); /* Changed */
+    }
+    .sidebar-placeholder {
+      padding: 12px;
+      font-size: 14px;
+      color: var(--text-secondary);
+    }
+
+    #sidebar-actions {
+      display: none;
+      gap: 8px;
+      padding: 8px 12px;
+      border-bottom: 1px solid var(--border-color-light);
+    }
+    #sidebar-actions button {
+      flex: 1;
+      padding: 4px 6px;
+      background: var(--bg-tab-inactive);
+      color: var(--text-primary);
+      border-radius: 4px;
+      border: 1px solid var(--border-color-light);
+      cursor: pointer;
+      font-size: 11px;
+    }
+    #sidebar-actions button:hover {
+      background: var(--border-color-light);
+    }
+
+    /* File Tree */
+    #file-tree {
+      list-style-type: none;
+      padding: 8px;
+      margin: 0;
+      flex: 1;
+      overflow-y: auto;
+    }
+    #file-tree ul {
+      list-style-type: none;
+      padding-left: 16px;
+    }
+    #file-tree li {
+      padding: 3px 4px;
+      border-radius: 4px;
+      cursor: pointer;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      font-size: 14px;
+      color: var(--text-secondary);
+      display: flex;
+      align-items: center;
+    }
+    #file-tree li:hover {
+      background: var(--bg-tab-inactive);
+      color: var(--text-active);
+    }
+    #file-tree .file.active {
+      background: rgba(45, 212, 191, 0.15);
+      color: var(--text-active);
+    }
+    #file-tree .folder:not(.collapsed) > ul { display: block; }
+    #file-tree .folder.collapsed > ul { display: none; }
+    
+    /* --- File/Folder Icons (NEW) --- */
+    #file-tree li .icon {
+      width: 16px;
+      height: 16px;
+      margin-right: 6px;
+      fill: currentColor;
+      flex-shrink: 0;
+    }
+    /* Chevron icons for folders */
+    #file-tree .folder .icon-chevron-right { display: inline-block; }
+    #file-tree .folder .icon-chevron-down { display: none; }
+    #file-tree .folder:not(.collapsed) > .item-label .icon-chevron-right { display: none; }
+    #file-tree .folder:not(.collapsed) > .item-label .icon-chevron-down { display: inline-block; }
+    
+    /* Folder open/closed icons */
+    #file-tree .folder .icon-folder-open { display: none; }
+    #file-tree .folder:not(.collapsed) > .item-label .icon-folder { display: none; }
+    #file-tree .folder:not(.collapsed) > .item-label .icon-folder-open { display: inline-block; }
+    
+    /* Default file icon */
+    #file-tree .file .icon-file-js,
+    #file-tree .file .icon-file-css,
+    #file-tree .file .icon-file-html { display: none; }
+    
+    /* Specific file icons */
+    .file[data-ext="js"] .icon-file { display: none; }
+    .file[data-ext="js"] .icon-file-js { display: inline-block; fill: #f0db4f; }
+    .file[data-ext="css"] .icon-file { display: none; }
+    .file[data-ext="css"] .icon-file-css { display: inline-block; fill: #264de4; }
+    .file[data-ext="html"] .icon-file { display: none; }
+    .file[data-ext="html"] .icon-file-html { display: inline-block; fill: #e34c26; }
+
+    #file-tree .item-label {
+      display: flex;
+      align-items: center;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    
+    /* --- Resizer Handle (Vertical) --- */
+    .resizer-v {
+      flex: 0 0 5px;
+      background: var(--bg-activity-bar);
+      cursor: col-resize;
+      z-index: 10;
+      transition: background 0.2s ease;
+    }
+    .resizer-v:hover,
+    .resizer-v.dragging {
+      background: var(--text-accent);
+    }
+    
+    /* --- Main Panel (Editor + Bottom Panel) --- */
+    #main-panel {
+      flex: 1;
+      min-width: 300px;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    
+    /* --- Editor Group --- */
+    #editor-group {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      min-height: 200px;
+    }
+    
+    /* Editor Tabs */
+    #editor-tabs {
+      display: flex;
+      background: var(--bg-sidebar);
+      overflow-x: auto;
+      /* Custom scrollbar for tab overflow */
+      scrollbar-width: thin;
+      scrollbar-color: #555 var(--bg-sidebar);
+    }
+    .editor-tab {
+      display: flex;
+      align-items: center;
+      padding: 8px 12px 8px 16px;
+      background: var(--bg-tab-inactive);
+      border-right: 1px solid var(--bg-sidebar);
+      font-size: 13px;
+      color: var(--text-secondary);
+      cursor: pointer;
+      white-space: nowrap;
+      border-top-left-radius: 4px;
+      border-top-right-radius: 4px;
+    }
+    .editor-tab.active {
+      background: var(--bg-tab-active);
+      color: var(--text-active);
+    }
+    .editor-tab:hover:not(.active) {
+      background: var(--bg-panel);
+    }
+    
+    /* --- Tab Close/Dirty Icons (NEW) --- */
+    .tab-icon {
+      width: 16px;
+      height: 16px;
+      margin-left: 10px;
+      padding: 2px;
+      border-radius: 4px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .tab-icon svg {
+      width: 12px;
+      height: 12px;
+      fill: currentColor;
+    }
+    .tab-close:hover {
+      background: var(--border-color-light);
+      color: #fff;
+    }
+    /* Hide dirty icon by default */
+    .tab-dirty { display: none; }
+    /* Show dirty icon, hide close icon */
+    .editor-tab.dirty .tab-dirty { display: flex; }
+    .editor-tab.dirty .tab-close { display: none; }
+    /* On hover of dirty tab, show close icon */
+    .editor-tab.dirty:hover .tab-dirty { display: none; }
+    .editor-tab.dirty:hover .tab-close { display: flex; }
+
+    /* Editor */
+    #editor {
+      flex: 1;
+      width: 100%;
+    }
+    
+    /* Welcome Screen */
+    #welcome-screen {
+      width: 100%;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      color: var(--text-secondary);
+      background: var(--bg-editor);
+      text-align: center;
+    }
+    #welcome-screen svg {
+      width: 64px;
+      height: 64px;
+      fill: var(--text-accent);
+      margin-bottom: 24px;
+    }
+    #welcome-screen h1 {
+      font-size: 28px;
+      font-weight: 600;
+      color: var(--text-active);
+      margin: 0;
+    }
+    #welcome-screen p {
+      font-size: 16px;
+      margin-top: 8px;
+      max-width: 300px;
+    }
+    #welcome-screen .welcome-button {
+      margin-top: 24px;
+      padding: 10px 16px;
+      background: var(--brand-accent);
+      color: var(--text-active);
+      border: none;
+      border-radius: 6px;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background 0.2s ease;
+    }
+    #welcome-screen .welcome-button:hover {
+      background: var(--brand-accent-light);
+    }
+    #welcome-screen.hidden {
+      display: none;
+    }
+
+    /* Status Bar */
+    #status-bar {
+      padding: 4px 12px;
+      background: var(--bg-statusbar);
+      border-top: 1px solid var(--border-color-dark);
+      font-size: 12px;
+      color: #FFFFFF;
+      text-align: right;
+    }
+    
+    /* --- Resizer Handle (Horizontal) --- */
+    .resizer-h {
+      flex: 0 0 5px;
+      background: var(--bg-activity-bar);
+      cursor: row-resize;
+      z-index: 10;
+      transition: background 0.2s ease;
+    }
+    .resizer-h:hover,
+    .resizer-h.dragging {
+      background: var(--text-accent);
+    }
+
+    /* --- Bottom Panel --- */
+    #bottom-panel {
+      flex: 0 0 200px;
+      min-height: 50px;
+      display: flex;
+      flex-direction: column;
+      background: var(--bg-panel);
+    }
+    /* Bottom Panel Tabs */
+    #bottom-panel-tabs {
+      display: flex;
+      background: var(--bg-panel-header);
+      padding: 0 12px;
+    }
+    .bottom-tab {
+      padding: 8px 12px;
+      font-size: 12px;
+      text-transform: uppercase;
+      color: var(--text-secondary);
+      cursor: pointer;
+      display: flex; /* NEW */
+      align-items: center; /* NEW */
+      gap: 6px; /* NEW */
+    }
+    .bottom-tab .icon {
+      width: 14px;
+      height: 14px;
+      fill: currentColor;
+    }
+    .bottom-tab.active {
+      color: var(--text-active);
+      border-bottom: 2px solid var(--text-active);
+    }
+    .bottom-tab:hover:not(.active) {
+      color: var(--text-active);
+    }
+    /* Style Run Button */
+    .run-button {
+      margin-left: auto;
+      background: #16a34a;
+      color: white;
+      gap: 6px;
+      padding: 8px 12px;
+      transition: background 0.2s ease;
+    }
+    .run-button:hover {
+      background: #15803d;
+    }
+    .run-button svg {
+      width: 14px;
+      height: 14px;
+      fill: currentColor;
+    }
+    
+    #bottom-panel-content {
+      flex: 1;
+      overflow: hidden;
+    }
+
+    /* Console */
+    #console {
+      height: 100%;
+      background: var(--bg-editor);
+      color: var(--text-primary);
+      font-family: var(--font-mono);
+      padding: 8px;
+      overflow-y: auto;
+      font-size: 13px;
+    }
+    #console .log-error { color: #f87171; }
+    #console .log-log { color: var(--text-primary); }
+    #console .log-warn { color: #facc15; }
+    #console .log-info { color: #38bdf8; }
+    
+    /* Preview */
+    #preview {
+      width: 100%;
+      height: 100%;
+      border: none;
+      background: #fff;
+    }
+    
+    #console.hidden, #preview.hidden {
+        display: none;
+    }
+  </style>
+</head>
+<body>
+  
+  <!-- SVG Icons Definition -->
+  <svg width="0" height="0" style="display: none;">
+    <!-- VS Code Icons -->
+    <symbol id="icon-files" viewBox="0 0 16 16">
+      <path d="M9 1.25a1.25 1.25 0 0 1 1.25 1.25v.5h-2.5v-.5A1.25 1.25 0 0 1 9 1.25zM8.5 4.75a.25.25 0 0 0-.25.25v.5c0 .138.112.25.25.25h2.5a.25.25 0 0 0 .25-.25v-.5a.25.25 0 0 0-.25-.25h-2.5zM7.75 6.5a.25.25 0 0 1 .25-.25h2.5a.25.25 0 0 1 .25.25v.5a.25.25 0 0 1-.25.25h-2.5a.25.25 0 0 1-.25-.25v-.5zM8 8.25a.25.25 0 0 0-.25.25v.5c0 .138.112.25.25.25h2.5a.25.25 0 0 0 .25-.25v-.5a.25.25 0 0 0-.25-.25H8zM7.16 1.77c.27-.27.64-.42 1.04-.42h.6c.4 0 .77.15 1.04.42l3.43 3.43c.27.27.42.64.42 1.04v.6c0 .4-.15.77-.42 1.04l-.01.01H7.16V1.77zM4.75 1.5A1.75 1.75 0 0 0 3 3.25V12c0 .966.784 1.75 1.75 1.75h8.5A1.75 1.75 0 0 0 15 12V7.75a1.75 1.75 0 0 0-1.75-1.75H9.5V3.25A1.75 1.75 0 0 0 7.75 1.5h-3z"></path>
+    </symbol>
+    <symbol id="icon-search" viewBox="0 0 16 16">
+      <path d="M10.68 11.74a6 6 0 0 1-7.922-8.982 6 6 0 0 1 8.982 7.922l3.04 3.04a.75.75 0 0 1-1.06 1.06l-3.04-3.04zM8.5 11a4.5 4.5 0 1 0 0-9 4.5 4.5 0 0 0 0 9z"></path>
+    </symbol>
+    <symbol id="icon-settings" viewBox="0 0 16 16">
+      <path d="M8 1a2.5 2.5 0 0 1 2.45 2.161l.01.144.024.29.32.08a6.96 6.96 0 0 1 1.01.438l.2.07.284-.103a2.5 2.5 0 0 1 2.864 1.2l.11.192.008.013a2.5 2.5 0 0 1-.723 3.33l-.17.12-.03.02.01.32a7.004 7.004 0 0 1 0 1.08l-.01.32.03.02.17.12a2.5 2.5 0 0 1 .723 3.33l-.008.013-.11.192a2.5 2.5 0 0 1-2.864 1.2l-.284-.103-.2.07a6.96 6.96 0 0 1-1.01.438l-.32.08-.024.29-.01.144A2.5 2.5 0 0 1 8 15a2.5 2.5 0 0 1-2.45-2.161l-.01-.144-.024-.29-.32-.08a6.96 6.96 0 0 1-1.01-.438l-.2-.07-.284.103a2.5 2.5 0 0 1-2.864-1.2l-.11-.192-.008-.013a2.5 2.5 0 0 1 .723-3.33l.17-.12.03-.02-.01-.32a7.004 7.004 0 0 1 0-1.08l.01-.32-.03-.02-.17-.12a2.5 2.5 0 0 1-.723-3.33l.008-.013.11-.192a2.5 2.5 0 0 1 2.864-1.2l.284.103.2.07c.32-.14.65-.26.99-.36l.02-.008.32-.08.024-.29.01-.144A2.5 2.5 0 0 1 8 1zM4 8a4 4 0 1 0 8 0 4 4 0 0 0-8 0z"></path>
+    </symbol>
+    <symbol id="icon-brand" viewBox="0 0 100 100">
+      <path d="M73.4,52.2C71.3,44.7,63.9,39,55,39c-7.4,0-13.9,3.8-17.7,9.6c-2.3-1.2-5-1.9-7.8-1.9c-8.8,0-16,7.2-16,16s7.2,16,16,16h44c6.6,0,12-5.4,12-12C89.5,58.8,82.4,52.4,73.4,52.2z"></path>
+    </symbol>
+    <symbol id="icon-play" viewBox="0 0 16 16">
+      <path d="M4.45 2.72l9.02 5.23a.75.75 0 0 1 0 1.3l-9.02 5.23a.75.75 0 0 1-1.12-.65V3.37a.75.75 0 0 1 1.12-.65z"></path>
+    </symbol>
+    
+    <!-- --- NEW ICONS --- -->
+    <symbol id="icon-preview" viewBox="0 0 16 16">
+      <path d="M.5 2.75A.75.75 0 0 1 1.25 2h13.5a.75.75 0 0 1 .75.75v10.5a.75.75 0 0 1-.75.75H1.25a.75.75 0 0 1-.75-.75V2.75zm.75 1.5v8.25h13.5V4.25H1.25z"></path>
+    </symbol>
+    <symbol id="icon-console" viewBox="0 0 16 16">
+       <path d="M1.5 2.5a.25.25 0 0 0-.25.25v10.5c0 .138.112.25.25.25h13a.25.25 0 0 0 .25-.25V2.75a.25.25 0 0 0-.25-.25h-13zM2.25 3h11.5v10H2.25V3zm2 2.25a.25.25 0 0 0 0 .5h4.5a.25.25 0 0 0 0-.5h-4.5zm0 2a.25.25 0 0 0 0 .5h5.5a.25.25 0 0 0 0-.5h-5.5z"></path>
+    </symbol>
+    <symbol id="icon-chevron-right" viewBox="0 0 16 16">
+      <path fill-rule="evenodd" d="M6.22 3.22a.75.75 0 0 1 1.06 0l4.25 4.25a.75.75 0 0 1 0 1.06l-4.25 4.25a.75.75 0 0 1-1.06-1.06L9.94 8 6.22 4.28a.75.75 0 0 1 0-1.06z"></path>
+    </symbol>
+    <symbol id="icon-chevron-down" viewBox="0 0 16 16">
+      <path fill-rule="evenodd" d="M3.22 6.22a.75.75 0 0 1 1.06 0L8 9.94l3.72-3.72a.75.75 0 1 1 1.06 1.06l-4.25 4.25a.75.75 0 0 1-1.06 0L3.22 7.28a.75.75 0 0 1 0-1.06z"></path>
+    </symbol>
+    
+    <symbol id="icon-folder" viewBox="0 0 16 16">
+      <path d="M.5 3.75A.75.75 0 0 1 1.25 3h3.5a.75.75 0 0 1 .53.22l.8.8a.75.75 0 0 0 .53.22h6.64a.75.75 0 0 1 .75.75v7.5a.75.75 0 0 1-.75.75H1.25a.75.75 0 0 1-.75-.75v-9zM1.25 4.5v8.75h13.5V5.5h-6.64a2.25 2.25 0 0 1-1.59-.66L5.16 4.5H1.25z"></path>
+    </symbol>
+    <symbol id="icon-folder-open" viewBox="0 0 16 16">
+      <path d="M14.75 5.5h-7.7a2.25 2.25 0 0 1-1.59-.66L4.16 3.5H1.25a.75.75 0 0 0-.75.75v9a.75.75 0 0 0 .75.75h13.5a.75.75 0 0 0 .75-.75v-7.5a.75.75 0 0 0-.75-.75zM1.25 4.25h2.91l1.3 1.3a.75.75 0 0 0 .53.22h7.76v.75H1.25v-2.27zM14.75 12.5H1.25v-6.5h13.5v6.5z"></path>
+    </symbol>
+    
+    <symbol id="icon-file" viewBox="0 0 16 16">
+      <path d="M2.5 1.75a.75.75 0 0 0-.75.75v11c0 .414.336.75.75.75h11a.75.75 0 0 0 .75-.75V3.664a.75.75 0 0 0-.22-.53l-2.164-2.164a.75.75 0 0 0-.53-.22H2.5zM3.25 3h7.59L12.75 4.91V13.5H3.25V3z"></path>
+    </symbol>
+    <symbol id="icon-file-html" viewBox="0 0 16 16">
+        <path d="M1.5 1.75A1.75 1.75 0 0 1 3.25 0h6.81a1.75 1.75 0 0 1 1.23.51l2.9 2.9A1.75 1.75 0 0 1 14.7 4.63v8.62A1.75 1.75 0 0 1 13 15H3.25A1.75 1.75 0 0 1 1.5 13.25V1.75zM3.25 1.5a.25.25 0 0 0-.25.25v11.5c0 .138.112.25.25.25h9.75a.25.25 0 0 0 .25-.25V4.63a.25.25 0 0 0-.07-.18l-2.9-2.9a.25.25 0 0 0-.18-.07H3.25zM6.56 10.75l-1.31 1.31a.75.75 0 1 1-1.06-1.06l1.8-1.8a.75.75 0 0 1 1.06 0l1.8 1.8a.75.75 0 1 1-1.06 1.06L6.56 10.75zm3.5-5a.75.75 0 0 1 .75.75v4a.75.75 0 0 1-1.5 0v-4a.75.75 0 0 1 .75-.75z"></path>
+    </symbol>
+    <symbol id="icon-file-css" viewBox="0 0 16 16">
+        <path d="M1.5 1.75A1.75 1.75 0 0 1 3.25 0h6.81a1.75 1.75 0 0 1 1.23.51l2.9 2.9A1.75 1.75 0 0 1 14.7 4.63v8.62A1.75 1.75 0 0 1 13 15H3.25A1.75 1.75 0 0 1 1.5 13.25V1.75zM3.25 1.5a.25.25 0 0 0-.25.25v11.5c0 .138.112.25.25.25h9.75a.25.25 0 0 0 .25-.25V4.63a.25.25 0 0 0-.07-.18l-2.9-2.9a.25.25 0 0 0-.18-.07H3.25zM6.15 6.47a.75.75 0 0 1 .73-.97l3.25.5a.75.75 0 0 1-.2 1.48l-3.25-.5a.75.75 0 0 1-.53-.51zm-.3 2.5a.75.75 0 0 1 .73-.97l2.25.5a.75.75 0 0 1-.2 1.48l-2.25-.5a.75.75 0 0 1-.53-.51zm.3 2.5a.75.75 0 0 1 .73-.97l1.25.5a.75.75 0 1 1-.2 1.48l-1.25-.5a.75.75 0 0 1-.53-.51z"></path>
+    </symbol>
+    <symbol id="icon-file-js" viewBox="0 0 16 16">
+        <path d="M1.5 1.75A1.75 1.75 0 0 1 3.25 0h6.81a1.75 1.75 0 0 1 1.23.51l2.9 2.9A1.75 1.75 0 0 1 14.7 4.63v8.62A1.75 1.75 0 0 1 13 15H3.25A1.75 1.75 0 0 1 1.5 13.25V1.75zM3.25 1.5a.25.25 0 0 0-.25.25v11.5c0 .138.112.25.25.25h9.75a.25.25 0 0 0 .25-.25V4.63a.25.25 0 0 0-.07-.18l-2.9-2.9a.25.25 0 0 0-.18-.07H3.25zM8 6.5a.75.75 0 0 1 .75.75v3.5a.75.75 0 0 1-1.5 0v-3.5A.75.75 0 0 1 8 6.5zm-2.25.75a.75.75 0 1 1 0 1.5.75.75 0 0 1 0-1.5zm4.5 1.5a.75.75 0 1 0 1.5 0 .75.75 0 0 0-1.5 0z"></path>
+    </symbol>
+    
+    <symbol id="icon-x" viewBox="0 0 16 16">
+      <path d="M3.72 3.72a.75.75 0 0 1 1.06 0L8 6.94l3.22-3.22a.75.75 0 1 1 1.06 1.06L9.06 8l3.22 3.22a.75.75 0 1 1-1.06 1.06L8 9.06l-3.22 3.22a.75.75 0 0 1-1.06-1.06L6.94 8 3.72 4.78a.75.75 0 0 1 0-1.06z"></path>
+    </symbol>
+    <symbol id="icon-dot" viewBox="0 0 16 16">
+      <circle cx="8" cy="8" r="4"></circle>
+    </symbol>
+  </svg>
+
+  <!-- 1. Activity Bar -->
+  <div id="activity-bar">
+    <div class="activity-icon" id="activity-brand" title="Stratus">
+      <svg><use href="#icon-brand"></use></svg>
+    </div>
+    <div class="activity-icon active" id="activity-files" onclick="toggleSidebar()" title="Explorer">
+      <svg><use href="#icon-files"></use></svg>
+    </div>
+    <div class="activity-icon" id="activity-search" title="Search">
+      <svg><use href="#icon-search"></use></svg>
+    </div>
+    <div class="activity-icon" id="activity-settings" title="Settings" style="margin-top: auto;">
+      <svg><use href="#icon-settings"></use></svg>
+    </div>
+  </div>
+
+  <!-- 2. Sidebar (File Explorer) -->
+  <div id="sidebar">
+    <div id="sidebar-header">
+      <span>Explorer</span>
+      <button id="open-folder-btn" onclick="openFolder()">Open Folder</button>
+    </div>
+    <div id="sidebar-actions">
+      <button onclick="newFile()">New File</button>
+      <button onclick="newFolder()">New Folder</button>
+    </div>
+    <ul id="file-tree">
+      <li class="sidebar-placeholder">Open a folder to start.</li>
+    </ul>
+  </div>
+
+  <div class="resizer-v" id="sidebar-resizer"></div>
+
+  <!-- 3. Main Panel (Editor + Bottom) -->
+  <div id="main-panel">
+    
+    <!-- 3a. Editor Group -->
+    <div id="editor-group">
+      <div id="editor-tabs"></div>
+      <div id="welcome-screen">
+        <svg><use href="#icon-brand"></use></svg>
+        <h1>Stratus</h1>
+        <p>A lightweight, modern code editor for the web.</p>
+        <button class="welcome-button" onclick="openFolder()">Open Folder</button>
+      </div>
+      <div id="editor"></div>
+    </div>
+    
+    <div class="resizer-h" id="bottom-panel-resizer"></div>
+
+    <!-- 3b. Bottom Panel -->
+    <div id="bottom-panel">
+      <div id="bottom-panel-tabs">
+        <div class="bottom-tab active" id="tab-console" onclick="setActiveBottomTab('console')">
+          <svg class="icon"><use href="#icon-console"></use></svg>
+          <span>Console</span>
+        </div>
+        <div class="bottom-tab" id="tab-preview" onclick="setActiveBottomTab('preview')">
+          <svg class="icon"><use href="#icon-preview"></use></svg>
+          <span>Preview</span>
+        </div>
+        <div class="bottom-tab run-button" id="tab-run" onclick="runPreview()">
+          <svg><use href="#icon-play"></use></svg>
+          <span>Run</span>
+        </div>
+      </div>
+      <div id="bottom-panel-content">
+        <div id="console">Console ready...</div>
+        <iframe id="preview" class="hidden"></iframe>
+      </div>
+    </div>
+    
+    <div id="status-bar">Ln 1, Col 1</div>
+  </div>
+
+
+  <!-- 1. Load Monaco Editor -->
+  <script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.44.0/min/vs/loader.js"></script>
+
+  <!-- 2. Application Script -->
+  <script>
+    // --- State ---
+    let activeFilePath = null;
+    let openFilePaths = [];
+    let monacoEditor;
+    let sidebarVisible = true;
+    let activeBottomTab = 'console';
+    let directoryHandle = null;
+    let fileHandleMap = new Map();
+    let saveDebounceTimer;
+
+    // --- DOM Elements ---
+    const sidebar = document.getElementById("sidebar");
+    const sidebarResizer = document.getElementById("sidebar-resizer");
+    const fileTree = document.getElementById("file-tree");
+    const preview = document.getElementById("preview");
+    const consoleBox = document.getElementById("console");
+    const editorTabs = document.getElementById("editor-tabs");
+    const statusBar = document.getElementById("status-bar");
+    const bottomPanel = document.getElementById("bottom-panel");
+    const editorElement = document.getElementById("editor");
+    const welcomeScreen = document.getElementById("welcome-screen");
+
+    // --- Activity Bar Functions ---
+    function toggleSidebar() {
+      sidebarVisible = !sidebarVisible;
+      sidebar.style.display = sidebarVisible ? "flex" : "none";
+      sidebarResizer.style.display = sidebarVisible ? "flex" : "none";
+      document.getElementById("activity-files").classList.toggle("active", sidebarVisible);
+      if (monacoEditor) {
+        monacoEditor.layout();
+      }
+    }
+
+    // --- File System API Functions ---
+    async function openFolder() {
+      try {
+        directoryHandle = await window.showDirectoryPicker();
+        
+        const options = { mode: 'readwrite' };
+        if (await directoryHandle.queryPermission(options) !== 'granted') {
+          if (await directoryHandle.requestPermission(options) !== 'granted') {
+            alert('Permission to write to this directory was denied.');
+            return;
+          }
+        }
+        
+        fileHandleMap.clear();
+        fileTree.innerHTML = "";
+        
+        await loadFileTree(directoryHandle, fileTree, "");
+        
+        document.getElementById('sidebar-actions').style.display = 'flex';
+        document.getElementById('open-folder-btn').textContent = directoryHandle.name;
+        showWelcomeScreen(false);
+      } catch (e) {
+        console.error('Error opening folder:', e);
+      }
+    }
+
+    async function loadFileTree(dirHandle, container, currentPath) {
+      container.innerHTML = "";
+      fileHandleMap.set(currentPath || dirHandle.name, dirHandle);
+
+      let entries = [];
+      try {
+        for await (const entry of dirHandle.values()) {
+          entries.push(entry);
+        }
+      } catch (e) {
+        console.error("Error reading directory entries:", e);
+        writeToConsole(`Error reading directory: ${e.message}`, 'error');
+        return;
+      }
+
+      entries.sort((a, b) => {
+        if (a.kind === 'directory' && b.kind === 'file') return -1;
+        if (a.kind === 'file' && b.kind === 'directory') return 1;
+        return a.name.localeCompare(b.name);
+      });
+
+      for (const entry of entries) {
+        const itemPath = currentPath ? `${currentPath}/${entry.name}` : entry.name;
+        fileHandleMap.set(itemPath, entry);
+        
+        const li = document.createElement("li");
+        li.setAttribute('data-path', itemPath);
+
+        const itemLabel = document.createElement("span"); // NEW wrapper for label + icons
+        itemLabel.className = "item-label";
+        
+        const icon = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+        icon.classList.add("icon");
+        
+        if (entry.kind === "directory") {
+          li.className = "folder collapsed";
+          // Chevrons + folder icons
+          icon.innerHTML = `
+            <use class="icon-chevron-right" href="#icon-chevron-right"></use>
+            <use class="icon-chevron-down" href="#icon-chevron-down"></use>
+            <use class="icon-folder" href="#icon-folder"></use>
+            <use class="icon-folder-open" href="#icon-folder-open"></use>
+          `;
+          itemLabel.onclick = (e) => {
+            e.stopPropagation();
+            const wasCollapsed = li.classList.toggle("collapsed");
+            if (!wasCollapsed) {
+              const ul = li.querySelector('ul');
+              if (ul && ul.childElementCount === 0) {
+                 loadFileTree(entry, ul, itemPath); // Note: async
+              }
+            }
+          };
+          
+          itemLabel.appendChild(icon);
+          itemLabel.appendChild(document.createTextNode(entry.name));
+          li.appendChild(itemLabel);
+          const ul = document.createElement("ul");
+          li.appendChild(ul);
+        } else {
+          // It's a file
+          const ext = entry.name.split('.').pop();
+          li.className = "file";
+          li.setAttribute('data-ext', ext);
+          if (itemPath === activeFilePath) {
+            li.classList.add("active");
+          }
+          // Default + specific file icons
+          icon.innerHTML = `
+            <use class="icon-file" href="#icon-file"></use>
+            <use class="icon-file-html" href="#icon-file-html"></use>
+            <use class="icon-file-css" href="#icon-file-css"></use>
+            <use class="icon-file-js" href="#icon-file-js"></use>
+          `;
+          itemLabel.onclick = (e) => {
+            e.stopPropagation();
+            openFileInEditor(itemPath);
+          };
+          itemLabel.appendChild(icon);
+          itemLabel.appendChild(document.createTextNode(entry.name));
+          li.appendChild(itemLabel);
+        }
+        container.appendChild(li);
+      }
+    }
+    
+    async function getParentHandleAndName(path) {
+      if (!directoryHandle) return null;
+      try {
+        const parts = path.split('/');
+        const name = parts.pop();
+        let parentHandle = directoryHandle;
+        for (const part of parts) {
+          if (!parentHandle) return null;
+          parentHandle = await parentHandle.getDirectoryHandle(part);
+        }
+        return { parentHandle, name };
+      } catch (e) {
+        console.error("Error getting parent handle:", e);
+        return null;
+      }
+    }
+
+    // --- Editor Functions (Async) ---
+    async function openFileInEditor(path) {
+      if (!openFilePaths.includes(path)) {
+        openFilePaths.push(path);
+      }
+      await setActiveFile(path);
+    }
+    
+    function closeFile(path, e) {
+        e.stopPropagation();
+        const index = openFilePaths.indexOf(path);
+        if (index > -1) { openFilePaths.splice(index, 1); }
+        
+        if (activeFilePath === path) {
+            if (openFilePaths.length > 0) {
+                const newIndex = Math.max(0, index - 1);
+                setActiveFile(openFilePaths[newIndex]);
+            } else {
+                setActiveFile(null);
+            }
+        } else {
+             renderTabs();
+        }
+    }
+
+    async function setActiveFile(path) {
+      activeFilePath = path;
+      let content = "";
+      let language = 'plaintext';
+
+      if (path) {
+        const fileHandle = fileHandleMap.get(path);
+        if (fileHandle && fileHandle.kind === 'file') {
+          try {
+            const file = await fileHandle.getFile();
+            content = await file.text();
+            const extension = path.split('.').pop();
+            if (extension === 'js') language = 'javascript';
+            if (extension === 'css') language = 'css';
+            if (extension === 'html') language = 'html';
+          } catch (e) {
+            console.error("Error reading file:", e);
+            content = "Error: Could not read file.";
+          }
+        }
+      }
+
+      if (monacoEditor) {
+        monacoEditor.setValue(content);
+        monaco.editor.setModelLanguage(monacoEditor.getModel(), language);
+      }
+      
+      updateFileTreeActiveState();
+      renderTabs();
+      updateStatusBar();
+      
+      showWelcomeScreen(path === null);
+    }
+    
+    function renderTabs() {
+        editorTabs.innerHTML = "";
+        openFilePaths.forEach(path => {
+            const tab = document.createElement("div");
+            tab.className = "editor-tab";
+            if (path === activeFilePath) { tab.classList.add("active"); }
+            tab.textContent = path.split('/').pop();
+            tab.title = path;
+            tab.onclick = () => setActiveFile(path);
+            
+            // NEW: Icon-based close/dirty buttons
+            const dirtyIcon = document.createElement("span");
+            dirtyIcon.className = "tab-icon tab-dirty";
+            dirtyIcon.innerHTML = '<svg><use href="#icon-dot"></use></svg>';
+            
+            const closeIcon = document.createElement("span");
+            closeIcon.className = "tab-icon tab-close";
+            closeIcon.innerHTML = '<svg><use href="#icon-x"></use></svg>';
+            closeIcon.onclick = (e) => closeFile(path, e);
+            
+            tab.appendChild(dirtyIcon);
+            tab.appendChild(closeIcon);
+            editorTabs.appendChild(tab);
+        });
+    }
+    
+    function updateFileTreeActiveState() {
+      document.querySelectorAll('#file-tree .file').forEach(f => {
+        f.classList.remove('active');
+        if (f.dataset.path === activeFilePath) {
+          f.classList.add('active');
+        }
+      });
+    }
+
+    function updateStatusBar() {
+        if (!monacoEditor || !activeFilePath) {
+            statusBar.textContent = " ";
+            return;
+        }
+        const position = monacoEditor.getPosition();
+        if (position) {
+            statusBar.textContent = `Ln ${position.lineNumber}, Col ${position.column}`;
+        }
+    }
+
+    function showWelcomeScreen(show) {
+      if (show) {
+        welcomeScreen.classList.remove('hidden');
+        editorElement.classList.add('hidden');
+      } else {
+        welcomeScreen.classList.add('hidden');
+        editorElement.classList.remove('hidden');
+      }
+    }
+
+    async function saveActiveFile() {
+      if (!activeFilePath || !monacoEditor) return;
+      
+      const fileHandle = fileHandleMap.get(activeFilePath);
+      if (!fileHandle || fileHandle.kind !== 'file') return;
+      
+      try {
+        const content = monacoEditor.getValue();
+        const writable = await fileHandle.createWritable();
+        await writable.write(content);
+        await writable.close();
+
+        const tab = document.querySelector(`.editor-tab[title="${activeFilePath}"]`);
+        if (tab) tab.classList.remove('dirty');
+
+      } catch (e) {
+        console.error("Error saving file:", e);
+        writeToConsole(`Error saving ${activeFilePath}: ${e.message}`, 'error');
+      }
+    }
+    
+    async function refreshParentTree(path) {
+        const parts = path.split('/');
+        parts.pop();
+        const parentPath = parts.join('/');
+        
+        const parentHandle = fileHandleMap.get(parentPath || directoryHandle.name);
+        if (!parentHandle) return;
+
+        let container;
+        if (parentPath === "") {
+            container = fileTree;
+        } else {
+            const parentLi = document.querySelector(`#file-tree li[data-path="${parentPath}"]`);
+            container = parentLi ? parentLi.querySelector('ul') : null;
+        }
+        
+        if (container) {
+            await loadFileTree(parentHandle, container, parentPath);
+        }
+    }
+
+    async function newFile() {
+      if (!directoryHandle) {
+        alert("Please open a folder first."); return;
+      }
+      const path = prompt("Enter new file path (e.g., src/main.js):");
+      if (!path) return;
+
+      try {
+        const { parentHandle, name } = await getParentHandleAndName(path);
+        if (!parentHandle) {
+          alert("Could not find parent folder."); return;
+        }
+        const newFileHandle = await parentHandle.getFileHandle(name, { create: true });
+        
+        fileHandleMap.set(path, newFileHandle);
+        await refreshParentTree(path);
+        
+        openFileInEditor(path);
+      } catch (e) {
+        console.error("Error creating file:", e);
+        alert(`Could not create file: ${e.message}`);
+      }
+    }
+    
+    async function newFolder() {
+      if (!directoryHandle) {
+        alert("Please open a folder first."); return;
+      }
+      const path = prompt("Enter new folder path (e.g., src/components):");
+      if (!path) return;
+
+      try {
+        const { parentHandle, name } = await getParentHandleAndName(path);
+        if (!parentHandle) {
+          alert("Could not find parent folder."); return;
+        }
+        const newDirHandle = await parentHandle.getDirectoryHandle(name, { create: true });
+        
+        fileHandleMap.set(path, newDirHandle);
+        await refreshParentTree(path);
+        
+      } catch (e) {
+        console.error("Error creating folder:", e);
+        alert(`Could not create folder: ${e.message}`);
+      }
+    }
+
+    // --- Bottom Panel Functions ---
+    function setActiveBottomTab(tabName) {
+        activeBottomTab = tabName;
+        document.getElementById('tab-console').classList.toggle('active', tabName === 'console');
+        document.getElementById('console').classList.toggle('hidden', tabName !== 'console');
+        document.getElementById('tab-preview').classList.toggle('active', tabName === 'preview');
+        document.getElementById('preview').classList.toggle('hidden', tabName !== 'preview');
+    }
+
+    function writeToConsole(message, type = "log") {
+      const p = document.createElement("p");
+      p.className = `log-${type}`;
+      p.textContent = `[${type}] ${message}`;
+      consoleBox.appendChild(p);
+      consoleBox.scrollTop = consoleBox.scrollHeight;
+    }
+
+    async function runPreview() {
+      if (!directoryHandle) {
+        alert("Please open a folder to run the preview."); return;
+      }
+
+      consoleBox.innerHTML = ""; 
+      writeToConsole("Building preview...", "info");
+
+      const readFile = async (fileName) => {
+        const handle = fileHandleMap.get(fileName);
+        if (handle && handle.kind === 'file') {
+          const file = await handle.getFile();
+          return await file.text();
+        }
+        return "";
+      };
+
+      try {
+        const html = await readFile('index.html');
+        const css = await readFile('style.css');
+        const js = await readFile('app.js');
+        
+        const combinedSrc = `${html}<style>${css}</style><script>${js}<\/script>`;
+        const blob = new Blob([combinedSrc], { type: "text/html" });
+        
+        if (preview.src) { URL.revokeObjectURL(preview.src); }
+        preview.src = URL.createObjectURL(blob);
+
+        preview.onload = () => {
+          try {
+            const win = preview.contentWindow;
+            const originalConsole = { log: win.console.log, error: win.console.error, warn: win.console.warn, info: win.console.info };
+            win.console.log = (...args) => { originalConsole.log.apply(win.console, args); writeToConsole(args.join(" "), "log"); };
+            win.console.error = (...args) => { originalConsole.error.apply(win.console, args); writeToConsole(args.join(" "), "error"); };
+            win.console.warn = (...args) => { originalConsole.warn.apply(win.console, args); writeToConsole(args.join(" "), "warn"); };
+            win.console.info = (...args) => { originalConsole.info.apply(win.console, args); writeToConsole(args.join(" "), "info"); };
+            win.onerror = (msg, src, line, col) => { writeToConsole(`${msg} (at ${line}:${col})`, "error"); return true; };
+            writeToConsole("Preview loaded. Console attached.", "info");
+          } catch (e) {
+            writeToConsole(`Failed to attach console: ${e.message}`, "error");
+          }
+        };
+        setActiveBottomTab('preview');
+      } catch (e) {
+        writeToConsole(`Error building preview: ${e.message}`, 'error');
+      }
+    }
+
+    // --- Resizer Logic ---
+    function makeResizable(resizer, prevPanel, nextPanel, direction = 'v') {
+      let isDragging = false;
+      resizer.addEventListener('mousedown', (e) => {
+        e.preventDefault(); isDragging = true;
+        resizer.classList.add('dragging');
+        document.body.style.cursor = (direction === 'v') ? 'col-resize' : 'row-resize';
+        document.body.style.userSelect = 'none';
+        prevPanel.style.userSelect = 'none'; nextPanel.style.userSelect = 'none';
+      });
+
+      document.addEventListener('mousemove', (e) => {
+        if (!isDragging) return;
+        
+        if (direction === 'v') {
+          const totalWidth = prevPanel.offsetWidth + nextPanel.offsetWidth;
+          const newPrevWidth = e.clientX - prevPanel.getBoundingClientRect().left;
+          const prevMinWidth = parseInt(getComputedStyle(prevPanel).minWidth, 10);
+          const nextMinWidth = parseInt(getComputedStyle(nextPanel).minWidth, 10);
+          if (newPrevWidth < prevMinWidth || (totalWidth - newPrevWidth) < nextMinWidth) return;
+          prevPanel.style.flexBasis = `${newPrevWidth}px`;
+          nextPanel.style.flexBasis = `${totalWidth - newPrevWidth}px`;
+        } else {
+          const totalHeight = prevPanel.offsetHeight + nextPanel.offsetHeight;
+          const newPrevHeight = e.clientY - prevPanel.getBoundingClientRect().top;
+          const prevMinHeight = parseInt(getComputedStyle(prevPanel).minHeight, 10);
+          const nextMinHeight = parseInt(getComputedStyle(nextPanel).minHeight, 10);
+          if (newPrevHeight < prevMinHeight || (totalHeight - newPrevHeight) < nextMinHeight) return;
+          prevPanel.style.flexBasis = `${newPrevHeight}px`;
+          nextPanel.style.flexBasis = `${totalHeight - newPrevHeight}px`;
+        }
+      });
+
+      document.addEventListener('mouseup', () => {
+        isDragging = false; resizer.classList.remove('dragging');
+        document.body.style.cursor = 'default';
+        document.body.style.userSelect = 'auto';
+        prevPanel.style.userSelect = 'auto'; nextPanel.style.userSelect = 'auto';
+        if (monacoEditor) monacoEditor.layout();
+      });
+    }
+
+    makeResizable(sidebarResizer, sidebar, document.getElementById('main-panel'), 'v');
+    makeResizable(
+      document.getElementById('bottom-panel-resizer'),
+      document.getElementById('editor-group'),
+      bottomPanel, 'h'
+    );
+
+    // --- Monaco Initialization ---
+    require.config({
+      paths: { vs: "https://cdn.jsdelivr.net/npm/monaco-editor@0.44.0/min/vs" },
+    });
+    require(["vs/editor/editor.main"], function () {
+      monacoEditor = monaco.editor.create(document.getElementById("editor"), {
+        language: "html",
+        theme: "vs-dark",
+        automaticLayout: true,
+        "bracketPairColorization.enabled": true,
+        minimap: { enabled: true },
+        background: '#1E1E1E',
+      });
+
+      monacoEditor.onDidChangeModelContent(() => {
+        const tab = document.querySelector(`.editor-tab[title="${activeFilePath}"]`);
+        if (tab) tab.classList.add('dirty');
+        
+        clearTimeout(saveDebounceTimer);
+        saveDebounceTimer = setTimeout(saveActiveFile, 1000);
+      });
+      
+      monacoEditor.onDidChangeCursorPosition(() => updateStatusBar());
+      
+      setActiveFile(null);
+      showWelcomeScreen(true);
+    });
+  </script>
+</body>
+</html>
